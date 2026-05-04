@@ -14,6 +14,30 @@
     font-size:14px;
 }
 
+#math-game .controls {
+    background: #f4f4f4;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    font-size: 14px;
+    border-bottom: 2px solid #ddd;
+}
+
+#math-game .controls label {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#math-game .controls button {
+    width: auto;
+    padding: 6px 12px;
+    margin: 0;
+    font-size: 13px;
+    background: #2196F3;
+}
+
 #math-game .board {
     display:flex;
     flex-direction:column;
@@ -21,9 +45,10 @@
 
 #math-game .area {
     display:grid;
-    grid-template-columns:repeat(5, 1fr);
-    gap:6px;
-    padding:6px;
+    /* スマホでも見やすいように3列を基準にする */
+    grid-template-columns:repeat(3, 1fr);
+    gap:8px;
+    padding:10px;
 }
 
 #math-game #bottom {
@@ -40,7 +65,7 @@
 #math-game .card-inner-wrapper {
     position:relative;
     width:100%;
-    padding-bottom:60%; /* 数式が長めなので少し縦長 */
+    padding-bottom:55%;
 }
 
 #math-game .inner {
@@ -77,13 +102,13 @@
 /* 数式を美しく、はみ出さないように表示 */
 #math-game .math-text {
     font-family: "Times New Roman", Times, serif;
-    font-size: clamp(11px, 2.2vw, 16px);
+    font-size: clamp(12px, 3vw, 18px); /* カードが大きくなった分、文字も少し大きく */
     letter-spacing: 0.5px;
     white-space: nowrap; 
 }
 
 #math-game .math-text i {
-    font-style: italic; /* x を斜体に */
+    font-style: italic;
 }
 
 #math-game #top .front { background:#BBDEFB; color:#0D47A1; font-weight:bold; }
@@ -110,8 +135,10 @@
     width:100%;
     height:100%;
     background:rgba(0,0,0,0.6);
+    /* スクロールしなくても見えるように上部に配置 */
     justify-content:center;
-    align-items:center;
+    align-items:flex-start; 
+    padding-top: 25px; 
     z-index: 10;
 }
 
@@ -122,6 +149,7 @@
     width:90%;
     max-width:380px;
     text-align:center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
 #math-game .modal-math {
@@ -148,6 +176,12 @@
     <div>タイム: <span id="t">0</span>秒　ミス: <span id="m">0</span></div>
 </div>
 
+<div class="controls">
+    <label><input type="radio" name="pairCount" value="3"> 3組</label>
+    <label><input type="radio" name="pairCount" value="6" checked> 6組</label>
+    <button id="reset-btn">やり直す</button>
+</div>
+
 <div class="board">
     <div class="area" id="top"></div>
     <div class="area" id="bottom"></div>
@@ -166,6 +200,7 @@
 
 let topSel=null, botSel=null, lock=false, modalOpen=false;
 let miss=0, match=0, start=null, timer;
+let currentPairCount = 6; // デフォルトは6組
 
 const top=document.querySelector('#math-game #top');
 const bottom=document.querySelector('#math-game #bottom');
@@ -173,13 +208,13 @@ const modal=document.querySelector('#math-game #modal');
 const mt=document.querySelector('#math-game #mt');
 const txt=document.querySelector('#math-game #txt');
 const btn=document.querySelector('#math-game #btn');
+const resetBtn=document.querySelector('#math-game #reset-btn');
 
 function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
-// --- 数式生成ロジック ---
+// 数式生成ロジック
 const x = '<i>x</i>';
 
-// 因数分解式の文字列生成
 function formatFactored(a, b) {
     if (a === 0 && b === 0) return `${x}<sup>2</sup>`;
     if (a === b) return `(${x}${a < 0 ? a : '+'+a})<sup>2</sup>`;
@@ -191,7 +226,6 @@ function formatFactored(a, b) {
     return `(${x}${strA})(${x}${strB})`;
 }
 
-// 展開式の文字列生成
 function formatExpanded(sum, prod) {
     let str = `${x}<sup>2</sup>`;
     
@@ -206,10 +240,9 @@ function formatExpanded(sum, prod) {
     return str;
 }
 
-// データ生成関数 (-12から12の乱数)
-function generateData() {
+function generateData(count) {
     const data = [];
-    for(let i = 0; i < 10; i++) {
+    for(let i = 0; i < count; i++) {
         let a = Math.floor(Math.random() * 25) - 12;
         let b = Math.floor(Math.random() * 25) - 12;
         
@@ -277,10 +310,8 @@ function card(d, type){
             lock=true;
 
             setTimeout(()=>{
-                // 負の数にはカッコをつけるフォーマット関数
                 const fmt = (n) => n < 0 ? `(${n})` : n;
 
-                // 和と積が一致すれば正解
                 if(topSel.d.sum === botSel.d.sum && topSel.d.prod === botSel.d.prod){
                     show(
                         '正解！',
@@ -295,7 +326,7 @@ function card(d, type){
                             botSel.c.classList.add('matched');
                             match++;
                             reset();
-                            if(match===10) end();
+                            if(match===currentPairCount) end();
                         }
                     );
                 }else{
@@ -352,9 +383,16 @@ function init(){
     match=0; miss=0;
     document.getElementById('m').textContent=0;
     document.getElementById('t').textContent=0;
+    if(timer) clearInterval(timer);
     start=null;
 
-    let gameData = generateData();
+    // ラジオボタンの選択状態を取得
+    const radios = document.getElementsByName('pairCount');
+    for (let r of radios) {
+        if (r.checked) currentPairCount = parseInt(r.value);
+    }
+
+    let gameData = generateData(currentPairCount);
 
     top.innerHTML='';
     bottom.innerHTML='';
@@ -362,6 +400,9 @@ function init(){
     shuffle([...gameData]).forEach(d=>top.appendChild(card(d,'exp')));
     shuffle([...gameData]).forEach(d=>bottom.appendChild(card(d,'fac')));
 }
+
+// やり直すボタンのイベント
+resetBtn.onclick = init;
 
 init();
 
