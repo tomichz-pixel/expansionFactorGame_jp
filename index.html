@@ -286,26 +286,43 @@ function card(d, type){
     wrapper.appendChild(i);
     c.appendChild(wrapper);
 
-    c.onclick=()=>{
-        if(lock||modalOpen) return;
+ c.onclick=()=>{
+        if(lock||modalOpen) return;
 
-        if(!start){
-            start=Date.now();
-            timer=setInterval(()=>{
-                document.getElementById('t').textContent = Math.floor((Date.now()-start)/1000);
-            },250);
-        }
+        if(!start){
+            start=Date.now();
+            timer=setInterval(()=>{
+                document.getElementById('t').textContent = Math.floor((Date.now()-start)/1000);
+            },250);
+        }
 
-        c.classList.add('flipped');
+        // ▼ ここから修正 ▼
+        if(type==='exp'){
+            // 同じカードをクリックした場合：閉じて選択解除
+            if(topSel && topSel.c === c){
+                c.classList.remove('flipped');
+                topSel = null;
+                return;
+            }
+            // 違うカードをクリックした場合：前のものを閉じて新しく開く
+            if(topSel) topSel.c.classList.remove('flipped');
+            c.classList.add('flipped');
+            topSel={c,d};
 
-        if(type==='exp'){
-            if(topSel) topSel.c.classList.remove('flipped');
-            topSel={c,d};
-        }else{
-            if(botSel) botSel.c.classList.remove('flipped');
-            botSel={c,d};
-        }
+        }else{
+            // 同じカードをクリックした場合：閉じて選択解除
+            if(botSel && botSel.c === c){
+                c.classList.remove('flipped');
+                botSel = null;
+                return;
+            }
+            // 違うカードをクリックした場合：前のものを閉じて新しく開く
+            if(botSel) botSel.c.classList.remove('flipped');
+            c.classList.add('flipped');
+            botSel={c,d};
+        }
 
+     
         if(topSel && botSel){
             lock=true;
 
